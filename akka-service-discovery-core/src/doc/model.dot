@@ -1,28 +1,30 @@
 digraph model {
     node [ shape="record" ]
 
-    scheme [ label="Scheme" ]
+    scheme [ label="Scheme", fontcolor="green" ]
     http
     https
 
-    port
-
-    status [ label="Status" ]
+    status [ label="Status", fontcolor="green" ]
     ok
-    down
+    unavailable
 
     access [ label="Access" ]
     service [ label="Service"]
     instance [ label="Instance" ]
-    host [ label="Host" ]
-    localhost [ label="::1" ]
 
-    cloud [ label="Cloud" ]
-    datacenter [ label="Datacenter" ]
-    rack [ label = "Rack" ]
+    report [ label="Report", fontcolor="blue" ]
+    heartbeat [ label="Heartbeat" ]
+    observation [ label="Observation" ]
+
+    host [ label="Host" ]
+
+    cloud [ label="Cloud", fontcolor="blue" ]
+    datacenter [ label="Datacenter", fontcolor="blue" ]
+    rack [ label = "Rack", fontcolor="blue" ]
 
     aws [ label = "AWS" ]
-    region [ label = "AWS Region" ]
+    region [ label = "AWS Region", fontcolor="green" ]
     az [ label = "AWS AZ" ]
 
     regions [ label = "{us-west-2|us-east-1|etc}" ]
@@ -33,7 +35,6 @@ digraph model {
 
     subgraph isA {
         edge [arrowhead="normal"]
-        localhost -> host
         aws -> cloud
         region -> datacenter
         az -> rack
@@ -45,7 +46,12 @@ digraph model {
 
         local -> cloud
 
-        {ok, down} -> status
+        {ok, unavailable} -> status
+
+        {heartbeat, observation} -> report
+
+        localDatacenter -> datacenter
+        localRack -> rack
     }
 
     subgraph hasA {
@@ -54,32 +60,22 @@ digraph model {
         rack -> datacenter
         host -> rack
 
-        instance -> service
-        instance -> access
-        instance -> status
-
-        access -> scheme
-        access -> host
-        access -> port
+        instance -> { service, access }
+        report -> { instance, status }
+        access -> { scheme, host }
 
         localDatacenter -> localRack
     }
 
     subgraph owns {
         edge [dir=back,arrowtail=diamond]
-        datacenter -> rack
 
-        cloud -> aws
-        cloud -> local
+        aws -> { region, az }
+    }
 
-        local -> localDatacenter
-        local -> localRack
-
-        aws -> region
-        aws -> az
-
-        region -> regions
-
-        status -> {ok, down}
+    subgraph legend {
+        node [ shape="note" ]
+        abstract [ fontcolor="blue" ]
+        enum [ fontcolor="green" ]
     }
 }

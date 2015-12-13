@@ -9,8 +9,10 @@ object Boilerplate extends AutoPlugin {
     addCompilerPlugin("org.psywerx.hairyfotr" %% "linter" % "0.1.12"),
     scalacOptions ++= Seq("-deprecation", "-feature", "-unchecked", "-Xlint", "-Xfatal-warnings", "-Yinline-warnings"),
     resolvers ++= Seq(
-      "Websudos releases" at "https://dl.bintray.com/websudos/oss-releases/",
-      "patriknw at bintray" at "http://dl.bintray.com/patriknw/maven"
+      Resolver.bintrayRepo("websudos", "oss-releases"),
+      Resolver.bintrayRepo("patriknw", "maven"),
+      Resolver.bintrayRepo("iheartradio", "maven"),
+      Resolver.jcenterRepo
     )
   )
 
@@ -35,6 +37,8 @@ object Boilerplate extends AutoPlugin {
       val enumeratum = "1.3.4"
 
       val scalatest = "2.2.4"
+
+      val ficus = "1.1.3"
     }
 
     private val v = Versions
@@ -54,6 +58,8 @@ object Boilerplate extends AutoPlugin {
     lazy val logging = slf4j_api :: logback :: Nil
 
     lazy val enumeratum = "com.beachape" %% "enumeratum" % v.enumeratum
+
+    lazy val ficus = "com.iheart" %% "ficus" % v.ficus
 
     lazy val scalatest =  "org.scalatest" %% "scalatest" % v.scalatest
   }

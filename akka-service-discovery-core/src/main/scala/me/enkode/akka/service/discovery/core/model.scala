@@ -1,6 +1,10 @@
 package me.enkode.akka.service.discovery.core
 
+import java.time.Instant
+
 import enumeratum.{Enum, EnumEntry}
+
+import scala.concurrent.duration.FiniteDuration
 
 sealed abstract class Scheme(val uriScheme: String) extends EnumEntry
 
@@ -21,13 +25,43 @@ object Status extends Enum[Status] {
   override def values: Seq[Status] = findValues
 
   case object ok extends Status
-  case object down extends Status
+  case object unavailable extends Status
 }
 
-case class Service(id: ServiceId)
-case class Instance(service: Service, access: Access, status: Status)
+case class Service(serviceId: ServiceId)
+
+case class Instance(instanceId: InstanceId, service: Service, access: Access)
+
+sealed trait Report {
+  def instance: Instance
+  def when: Instant
+  def status: Status
+}
+
+case class Heartbeat(
+  instance: Instance,
+  memoryLoad: Float,
+  cpuLoad: Float,
+  when: Instant = Instant.now(),
+  status: Status = Status.ok
+  ) extends Report {
+  require(0.0 → 1.0 contains memoryLoad)
+  require(0.0 → 1.0 contains cpuLoad)
+}
+
+case class Observation(
+  instance: Instance,
+  observedBy: Instance,
+  latency: FiniteDuration,
+  when: Instant = Instant.now(),
+  status: Status = Status.ok
+  ) extends Report
 
 case class Host(publicName: String, rack: Rack)
+case object Host {
+  val local = Host("localhost", Cloud.Local.LocalRack)
+}
+
 
 sealed trait Datacenter
 

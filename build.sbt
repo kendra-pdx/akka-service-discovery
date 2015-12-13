@@ -13,7 +13,8 @@ lazy val `akka-service-discovery-cluster` = (project)
   .settings(
     libraryDependencies ++= Seq(
       Boilerplate.Modules.akka("actor"),
-      Boilerplate.Modules.akkaDataReplication
+      Boilerplate.Modules.akkaDataReplication,
+      Boilerplate.Modules.ficus
     )
   )
 
@@ -24,12 +25,13 @@ lazy val `akka-service-discovery` = (project)
   .dependsOn(`akka-service-discovery-core`)
   .settings(
     libraryDependencies ++= Seq(
-      Boilerplate.Modules.akka("actor")
+      Boilerplate.Modules.akka("actor"),
+      Boilerplate.Modules.ficus
     )
   )
 
 lazy val root = ((project) in file("."))
-  .aggregate(`akka-service-discovery`, `akka-service-discovery-cluster`, `akka-service-discovery-eureka`)
+  .aggregate(`akka-service-discovery`, `akka-service-discovery-cluster`, `akka-service-discovery-eureka`, `akka-service-discovery-core`)
   .settings(inConfig(GraphvizPlugin.Config) {
     dot := {
       val pngs = dot.in(`akka-service-discovery-core`).value
