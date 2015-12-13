@@ -2,6 +2,7 @@ package me.enkode.akka.service.discovery.cluster
 
 import akka.actor.{ActorRef, Cancellable, ExtendedActorSystem}
 import akka.event.Logging
+import akka.util.Timeout
 import me.enkode.akka.service.discovery.ServiceDiscovery.Self
 import me.enkode.akka.service.discovery.core._
 import me.enkode.akka.service.discovery.{InstanceLoad, ServiceDiscovery, ServiceDiscoveryConfig}
@@ -42,14 +43,16 @@ class ClusterServiceDiscovery(
     }
 
     def prune(): Unit = {
-      logger.debug("prune…")
+      logger.debug("prune… i don't know how to do this yet")
     }
 
     def startHeartbeating(): Cancellable = {
       actorSystem.scheduler.schedule(1.second, serviceDiscoveryConfig.heartbeat.frequency)(heartbeat())
     }
 
-    def startPruning(): Cancellable = actorSystem.scheduler.schedule(1.second, 2.minute)(prune())
+    def startPruning(): Cancellable = {
+      actorSystem.scheduler.schedule(1.second, 2.minute)(prune())
+    }
 
     override def start(): Unit = tasks.synchronized {
       tasks = startHeartbeating() :: startPruning() :: Nil
@@ -61,7 +64,7 @@ class ClusterServiceDiscovery(
     }
   }
 
-  override def service(id: ServiceId): ServiceDiscovery.Service = new ServiceDiscovery.Service {
+  override def service(serviceId: ServiceId): ServiceDiscovery.Service = new ServiceDiscovery.Service {
 
     override def observation(instance: Instance, status: Status, latency: FiniteDuration): Unit = {
       val observation = Observation(instance, localInstance, latency, status = status)
@@ -69,7 +72,12 @@ class ClusterServiceDiscovery(
     }
 
     override def instances(): Future[Set[Instance]] = {
-      Future(Set.empty)
+      import akka.pattern.ask
+      implicit val timeout = Timeout(clusterServiceDiscoveryConfig.timeouts.queryInstancesByService)
+      sdActorRef
+        .ask(ClusterServiceDiscoveryActor.GetServiceReports(serviceId))
+        .mapTo[ClusterServiceDiscoveryActor.GetServiceReportsResult]
+        .map(_.reports.map(_.instance))
     }
 
     override def nearest(): Future[Option[Instance]] = instances() map { _.headOption }

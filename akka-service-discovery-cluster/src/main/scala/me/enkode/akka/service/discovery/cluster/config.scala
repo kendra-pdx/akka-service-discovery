@@ -1,3 +1,11 @@
 package me.enkode.akka.service.discovery.cluster
 
-case class ClusterServiceDiscoveryConfig()
+import scala.concurrent.duration.FiniteDuration
+
+case class ClusterServiceDiscoveryConfig(
+  timeouts: ClusterServiceDiscoveryConfigTimeouts
+)
+
+case class ClusterServiceDiscoveryConfigTimeouts(
+  queryInstancesByService: FiniteDuration
+)
