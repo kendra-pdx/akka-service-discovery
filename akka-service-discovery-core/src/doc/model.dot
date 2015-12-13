@@ -1,0 +1,85 @@
+digraph model {
+    node [ shape="record" ]
+
+    scheme [ label="Scheme" ]
+    http
+    https
+
+    port
+
+    status [ label="Status" ]
+    ok
+    down
+
+    access [ label="Access" ]
+    service [ label="Service"]
+    instance [ label="Instance" ]
+    host [ label="Host" ]
+    localhost [ label="::1" ]
+
+    cloud [ label="Cloud" ]
+    datacenter [ label="Datacenter" ]
+    rack [ label = "Rack" ]
+
+    aws [ label = "AWS" ]
+    region [ label = "AWS Region" ]
+    az [ label = "AWS AZ" ]
+
+    regions [ label = "{us-west-2|us-east-1|etc}" ]
+
+    local [ label = "Local" ]
+    localDatacenter [ label = "Local Datacenter" ]
+    localRack [ label="Local Rack" ]
+
+    subgraph isA {
+        edge [arrowhead="normal"]
+        localhost -> host
+        aws -> cloud
+        region -> datacenter
+        az -> rack
+
+        http -> scheme
+        https -> scheme
+
+        regions -> region
+
+        local -> cloud
+
+        {ok, down} -> status
+    }
+
+    subgraph hasA {
+        edge [dir=back,arrowtail=odiamond]
+
+        rack -> datacenter
+        host -> rack
+
+        instance -> service
+        instance -> access
+        instance -> status
+
+        access -> scheme
+        access -> host
+        access -> port
+
+        localDatacenter -> localRack
+    }
+
+    subgraph owns {
+        edge [dir=back,arrowtail=diamond]
+        datacenter -> rack
+
+        cloud -> aws
+        cloud -> local
+
+        local -> localDatacenter
+        local -> localRack
+
+        aws -> region
+        aws -> az
+
+        region -> regions
+
+        status -> {ok, down}
+    }
+}
