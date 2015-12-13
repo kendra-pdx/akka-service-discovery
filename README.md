@@ -26,4 +26,7 @@ Sure, why not.
 
 # Core Model
 
+The core model contains the case classes which define the service discovery domain. There are no dependencies beyond
+the scala-library and [Enumeratum](https://github.com/lloydmeta/enumeratum)
+
 ![Core Model Diagram](doc/model.png)
