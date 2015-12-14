@@ -10,12 +10,33 @@ lazy val `akka-service-discovery-core` = (project)
 
 lazy val `akka-service-discovery-cluster` = (project)
   .dependsOn(`akka-service-discovery-core`, `akka-service-discovery`)
+  .configs(MultiJvm)
   .settings(
     libraryDependencies ++= Seq(
       Boilerplate.Modules.akka("actor"),
       Boilerplate.Modules.akkaDataReplication,
       Boilerplate.Modules.ficus
-    )
+    ) ++ Seq(
+      Boilerplate.Modules.scalatest,
+      Boilerplate.Modules.akka("multi-node-testkit"),
+      Boilerplate.Modules.akka("slf4j"),
+      Boilerplate.Modules.slf4j_api,
+      Boilerplate.Modules.logback
+    ).map(_ % Test),
+
+    compile in MultiJvm <<= (compile in MultiJvm) triggeredBy (compile in Test),
+    parallelExecution in Test := false,
+    executeTests in Test <<= (executeTests in Test, executeTests in MultiJvm) map {
+      case (testResults, multiNodeResults)  =>
+        val overall =
+          if (testResults.overall.id < multiNodeResults.overall.id)
+            multiNodeResults.overall
+          else
+            testResults.overall
+        Tests.Output(overall,
+          testResults.events ++ multiNodeResults.events,
+          testResults.summaries ++ multiNodeResults.summaries)
+    }
   )
 
 lazy val `akka-service-discovery-eureka` = (project)

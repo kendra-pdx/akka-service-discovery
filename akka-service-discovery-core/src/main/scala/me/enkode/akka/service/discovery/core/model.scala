@@ -6,7 +6,7 @@ import enumeratum.{Enum, EnumEntry}
 
 import scala.concurrent.duration.FiniteDuration
 
-sealed abstract class Scheme(val uriScheme: String) extends EnumEntry
+sealed abstract class Scheme(val uriScheme: String) extends EnumEntry with Serializable
 
 object Scheme extends Enum[Scheme] {
   override def values: Seq[Scheme] = findValues
@@ -45,8 +45,8 @@ case class Heartbeat(
   when: Instant = Instant.now(),
   status: Status = Status.ok
   ) extends Report {
-  require(0.0 → 1.0 contains memoryLoad)
-  require(0.0 → 1.0 contains cpuLoad)
+  require(0.0 → 1.0 contains memoryLoad, s"mem: $memoryLoad")
+  require(0.0 → 1.0 contains cpuLoad, s"cpu: $cpuLoad")
 }
 
 case class Observation(

@@ -25,7 +25,7 @@ object Boilerplate extends AutoPlugin {
       val react = "0.14.3"
 
       val akkaStreams = "2.0-M2"
-      val akka = "2.4.1"
+      val akka = "2.3.14" // "2.4.1"
       val akkaDataReplication = "0.11"
 
       val slf4j = "1.7.10"

@@ -5,6 +5,7 @@ import java.time.Instant
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import akka.cluster.Cluster
 import akka.contrib.datareplication.{ORMap, DataReplication, ORSet}
+import akka.event.LoggingReceive
 import me.enkode.akka.service.discovery.core._
 
 object ClusterServiceDiscoveryActor {
@@ -37,11 +38,10 @@ class ClusterServiceDiscoveryActor extends Actor with ActorLogging {
   val reportsByService = ORMap.empty[ORSet[Report]]
 
   def updateReportsByService(report: Report)(byService: ReportsByService): ReportsByService = {
-    val instanceId = report.instance.instanceId
-    byService + (instanceId → (byService.getOrElse(instanceId, ORSet.empty[Report]) + report))
+    byService.updated(cluster, report.instance.service.serviceId, ORSet.empty[Report]){ _ + report }
   }
 
-  override def receive: Receive = {
+  override def receive: Receive = LoggingReceive {
     // SEND HEARTBEAT
     case SendReport(report) ⇒
       replicator ! Update(report.instance.service.serviceId, reportsByService, rc, wc, None)(updateReportsByService(report))
@@ -61,13 +61,16 @@ class ClusterServiceDiscoveryActor extends Actor with ActorLogging {
     // GET REPORTS
 
     case command@GetServiceReports(serviceId) ⇒
-      replicator ! Get(serviceId, rc, Some(command → sender()))
+      log.info(s"asking the replicator for reports for $serviceId")
+      val replyTo = sender()
+      replicator ! Get(serviceId, rc, Some(command → replyTo))
 
-    case GetSuccess(instanceId, data: ReportsByService @unchecked, Some((GetServiceReports(_), replyTo: ActorRef))) ⇒
+    case GetSuccess(serviceId, data: ReportsByService @unchecked, Some((command: GetServiceReports, replyTo: ActorRef))) ⇒
+      log.info(s"get success for serviceId: $serviceId - $data")
       val reports: Set[Report] = {
         data.entries.values.map(_.elements).toSet.flatten
       }
-      replyTo ! reports
+      replyTo ! GetServiceReportsResult(command, reports)
 
     case NotFound(_, Some((GetServiceReports(_), replyTo: ActorRef))) ⇒
       replyTo ! Set.empty[Report]

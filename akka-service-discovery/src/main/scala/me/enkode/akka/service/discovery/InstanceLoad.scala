@@ -11,6 +11,6 @@ object InstanceLoad {
   }
 
   def cpu(): Float = {
-    ManagementFactory.getOperatingSystemMXBean.getSystemLoadAverage.toFloat
+    ManagementFactory.getOperatingSystemMXBean.getSystemLoadAverage.toFloat / Runtime.getRuntime.availableProcessors()
   }
 }

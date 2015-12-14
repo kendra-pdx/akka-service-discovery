@@ -54,11 +54,11 @@ class ClusterServiceDiscovery(
       actorSystem.scheduler.schedule(1.second, 2.minute)(prune())
     }
 
-    override def start(): Unit = tasks.synchronized {
+    override def start(): Unit = synchronized {
       tasks = startHeartbeating() :: startPruning() :: Nil
     }
 
-    override def shutdown(): Unit = tasks.synchronized {
+    override def shutdown(): Unit = synchronized {
       tasks foreach { _.cancel() }
       tasks = Nil
     }
@@ -66,21 +66,28 @@ class ClusterServiceDiscovery(
 
   override def service(serviceId: ServiceId): ServiceDiscovery.Service = new ServiceDiscovery.Service {
 
+    implicit object ReportOrdering extends Ordering[Report] {
+      override def compare(x: Report, y: Report): Int = {
+        x.when.toEpochMilli.compareTo(y.when.toEpochMilli)
+      }
+    }
+
     override def observation(instance: Instance, status: Status, latency: FiniteDuration): Unit = {
       val observation = Observation(instance, localInstance, latency, status = status)
       sdActorRef ! ClusterServiceDiscoveryActor.SendReport(observation)
     }
 
-    override def instances(): Future[Set[Instance]] = {
+    override def reports(): Future[Set[Report]] = {
       import akka.pattern.ask
       implicit val timeout = Timeout(clusterServiceDiscoveryConfig.timeouts.queryInstancesByService)
+      logger.info(s"searching for reports: serviceId=$serviceId")
       sdActorRef
         .ask(ClusterServiceDiscoveryActor.GetServiceReports(serviceId))
         .mapTo[ClusterServiceDiscoveryActor.GetServiceReportsResult]
-        .map(_.reports.map(_.instance))
+        .map(_.reports)
     }
 
-    override def nearest(): Future[Option[Instance]] = instances() map { _.headOption }
+    override def nearest(): Future[Option[Instance]] = reports() map { _.toList.sorted.headOption.map(_.instance) }
 
     override def best(): Future[Option[Instance]] = nearest()
   }
