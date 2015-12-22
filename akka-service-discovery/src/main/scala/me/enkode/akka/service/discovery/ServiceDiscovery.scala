@@ -13,8 +13,8 @@ object ServiceDiscovery extends ExtensionId[ServiceDiscovery]{
     import net.ceedubs.ficus.Ficus._
     import net.ceedubs.ficus.readers.ArbitraryTypeReader._
     val config = system.settings.config.as[ServiceDiscoveryConfig]("service-discovery")
-    val pid = ManagementFactory.getRuntimeMXBean().getName()
-    val localInstance: Instance = Instance(pid, Service("myService"), Access(Scheme.http, Host.local, 8080))
+    val pid = ManagementFactory.getRuntimeMXBean.getName
+    val localInstance: Instance = Instance(pid, Service(config.service.serviceId), Access(Scheme.http, Host.local, 8080))
 
     Class.forName(config.factoryClass).newInstance().asInstanceOf[ServiceDiscoveryFactory](localInstance, config, system)
   }
@@ -31,7 +31,8 @@ object ServiceDiscovery extends ExtensionId[ServiceDiscovery]{
     def best(): Future[Option[Instance]]
     def nearest(): Future[Option[Instance]]
 
-    def observation(instance: Instance, status: Status, latency: FiniteDuration): Unit
+    def observation(instance: Instance, status: Status,
+      latency: Option[FiniteDuration] = None): Unit
   }
 }
 

@@ -21,12 +21,13 @@ class ClusterServiceDiscovery(
   import actorSystem.dispatcher
   import akka.pattern.ask
 
-  val logger = Logging.getLogger(actorSystem, this)
+  val logger = Logging.getLogger(actorSystem, classOf[ClusterServiceDiscovery])
 
   if (serviceDiscoveryConfig.autoStart) {
     self().start()
   }
 
+  private object TasksLock
   private var tasks: Seq[Cancellable] = Nil
 
   implicit val askTimeout = Timeout(clusterServiceDiscoveryConfig.timeouts.dDataAsk)
@@ -40,14 +41,15 @@ class ClusterServiceDiscovery(
     byService.updated(cluster, report.instance.service.serviceId, ORSet.empty[Report]){ _ + report }
   }
 
-  def reportUpdate(report: Report): Update[ORMap[ORSet[Report]]] = {
+  def reportUpdate(report: Report, wc: WriteConsistency = WriteLocal): Update[ORMap[ORSet[Report]]] = {
     val reportsByService = ORMap.empty[ORSet[Report]]
-    Update(keyOf(report.instance.service.serviceId), reportsByService, WriteLocal, None)(updateReportsByService(report))
+    val key = keyOf(report.instance.service.serviceId)
+    Update(key, reportsByService, wc)(updateReportsByService(report))
   }
 
-  def reportsByServiceGet(serviceId: ServiceId): Get[ORMap[ORSet[Report]]] = {
-    val key = ORMapKey[ORSet[Report]](serviceId)
-    Get(key, ReadLocal, None)
+  def reportsByServiceGet(serviceId: ServiceId, rc: ReadConsistency = ReadLocal): Get[ORMap[ORSet[Report]]] = {
+    val key = keyOf(serviceId)
+    Get(key, rc)
   }
 
   override def self(): ServiceDiscovery.Self = new Self {
@@ -58,14 +60,18 @@ class ClusterServiceDiscovery(
 
     def heartbeat(): Unit = {
       logger.debug("<3")
-      val report = Heartbeat(localInstance, InstanceLoad.memory(), InstanceLoad.cpu(), status = reportStatus)
+      val meta: HeartbeatMeta.Values = Map(
+        HeartbeatMeta.CpuLoad → Left(InstanceLoad.cpu()),
+        HeartbeatMeta.MemoryLoad → Left(InstanceLoad.memory())
+      )
+      val report = Heartbeat(localInstance, meta, status = reportStatus)
       (replicator ask reportUpdate(report)) map {
         case response ⇒ logger.debug(s"replicator update response: $response")
       }
     }
 
     def prune(): Unit = {
-      logger.debug("prune… i don't know how to do this yet")
+      logger.debug("prune…? i don't know how to do this yet")
     }
 
     def startHeartbeating(): Cancellable = {
@@ -76,11 +82,11 @@ class ClusterServiceDiscovery(
       actorSystem.scheduler.schedule(1.second, 2.minute)(prune())
     }
 
-    override def start(): Unit = synchronized {
+    override def start(): Unit = TasksLock.synchronized {
       tasks = startHeartbeating() :: startPruning() :: Nil
     }
 
-    override def shutdown(): Unit = synchronized {
+    override def shutdown(): Unit = TasksLock.synchronized {
       tasks foreach { _.cancel() }
       tasks = Nil
     }
@@ -97,8 +103,16 @@ class ClusterServiceDiscovery(
       }
     }
 
-    override def observation(instance: Instance, status: Status, latency: FiniteDuration): Unit = {
-      val report = Observation(instance, localInstance, latency, status = status)
+    override def observation(instance: Instance, status: Status,
+      latency: Option[FiniteDuration] = None): Unit = {
+
+      val meta: ObservationMeta.Values = Map[ObservationMeta, Option[ObservationMeta.Value]](
+        ObservationMeta.Latency → (latency map { l ⇒ Left(l.toMillis) })
+      ) collect {
+        case (key, Some(value)) ⇒ key → value
+      }
+
+      val report = Observation(instance, localInstance, meta, status = status)
       (replicator ask reportUpdate(report)) map {
         case response ⇒ logger.debug(s"replicator update response: $response")
       }
@@ -110,9 +124,11 @@ class ClusterServiceDiscovery(
 
       (replicator ask reportsByServiceGet(serviceId)) map {
         case success@GetSuccess(ORMapKey(`serviceId`), _) ⇒
+          logger.debug(s"found reports for $serviceId")
           success.get(keyOf(serviceId)).entries.values.flatMap(_.elements).toSet
 
         case NotFound(ORMapKey(`serviceId`), _) ⇒
+          logger.debug(s"no reports for $serviceId")
           Set.empty[Report]
       }
     }

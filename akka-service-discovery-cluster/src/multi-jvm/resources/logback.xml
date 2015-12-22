@@ -5,8 +5,10 @@
         </encoder>
     </appender>
 
-    <root level="debug">
+    <root level="warn">
         <appender-ref ref="STDOUT" />
     </root>
+
+    <logger name="me.enkode" level="debug"/>
 
 </configuration>

@@ -38,21 +38,49 @@ sealed trait Report {
   def status: Status
 }
 
+sealed trait HeartbeatMeta extends EnumEntry
+object HeartbeatMeta extends Enum[HeartbeatMeta] {
+  override def values: Seq[HeartbeatMeta] = findValues
+
+  case object CpuLoad extends HeartbeatMeta
+  case object MemoryLoad extends HeartbeatMeta
+
+  type Value = Either[Double, String]
+  type Values = Map[HeartbeatMeta, Value]
+}
+
 case class Heartbeat(
   instance: Instance,
-  memoryLoad: Float,
-  cpuLoad: Float,
+  meta: HeartbeatMeta.Values,
   when: Instant = Instant.now(),
   status: Status = Status.ok
   ) extends Report {
-  require(0.0 → 1.0 contains memoryLoad, s"mem: $memoryLoad")
-  require(0.0 → 1.0 contains cpuLoad, s"cpu: $cpuLoad")
+  meta foreach {
+    case (HeartbeatMeta.CpuLoad, Left(cpuLoad)) ⇒
+      require(0.0 → 1.0 contains cpuLoad, s"cpu: $cpuLoad")
+
+    case (HeartbeatMeta.MemoryLoad, Left(memoryLoad)) ⇒
+      require(0.0 → 1.0 contains memoryLoad, s"mem: $memoryLoad")
+
+    case (m, v) ⇒ throw new IllegalArgumentException(s"$m→$v is invalid")
+  }
+}
+
+sealed trait ObservationMeta extends EnumEntry
+
+object ObservationMeta extends Enum[ObservationMeta] {
+  override def values: Seq[ObservationMeta] = findValues
+
+  case object Latency extends ObservationMeta
+
+  type Value = Either[Double, String]
+  type Values = Map[ObservationMeta, Value]
 }
 
 case class Observation(
   instance: Instance,
   observedBy: Instance,
-  latency: FiniteDuration,
+  meta: ObservationMeta.Values,
   when: Instant = Instant.now(),
   status: Status = Status.ok
   ) extends Report
