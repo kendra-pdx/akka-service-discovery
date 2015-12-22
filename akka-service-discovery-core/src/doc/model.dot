@@ -17,7 +17,7 @@ digraph model {
     heartbeat [ label="Heartbeat" ]
     observation [ label="Observation" ]
 
-    heartbeatMeta [ label="Hearbeat Meta", fontcolor="green" ]
+    heartbeatMeta [ label="Heartbeat Meta", fontcolor="green" ]
     heartbeatCpu [ label="CPU" ]
     heartbeatMemory [ label="Memory" ]
 
