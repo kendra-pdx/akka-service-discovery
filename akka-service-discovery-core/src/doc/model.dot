@@ -17,6 +17,13 @@ digraph model {
     heartbeat [ label="Heartbeat" ]
     observation [ label="Observation" ]
 
+    heartbeatMeta [ label="Hearbeat Meta", fontcolor="green" ]
+    heartbeatCpu [ label="CPU" ]
+    heartbeatMemory [ label="Memory" ]
+
+    observationMeta [ label="Observation Meta", fontcolor="green" ]
+    observationLatency [ label="Latency" ]
+
     host [ label="Host" ]
 
     cloud [ label="Cloud", fontcolor="blue" ]
@@ -50,6 +57,9 @@ digraph model {
 
         {heartbeat, observation} -> report
 
+        {heartbeatCpu, heartbeatMemory} -> heartbeatMeta
+        {observationLatency} -> observationMeta
+
         localDatacenter -> datacenter
         localRack -> rack
     }
@@ -63,6 +73,9 @@ digraph model {
         instance -> { service, access }
         report -> { instance, status }
         access -> { scheme, host }
+
+        heartbeat -> heartbeatMeta
+        observation -> observationMeta
 
         localDatacenter -> localRack
     }
