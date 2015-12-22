@@ -81,6 +81,6 @@ class ClusterServiceDiscoverySpec extends MultiNodeSpec(ClusterServiceDiscoveryS
   enterBarrier("stopping")
 
   override protected def afterAll(): Unit = {
-    system.shutdown()
+    system.terminate()
   }
 }

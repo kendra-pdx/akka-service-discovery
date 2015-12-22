@@ -25,7 +25,7 @@ object Boilerplate extends AutoPlugin {
       val react = "0.14.3"
 
       val akkaStreams = "2.0-M2"
-      val akka = "2.3.14" // "2.4.1"
+      val akka =  "2.4.1"
       val akkaDataReplication = "0.11"
 
       val slf4j = "1.7.10"
@@ -44,7 +44,7 @@ object Boilerplate extends AutoPlugin {
     private val v = Versions
 
     def akka(name: String, version: String = v.akka) = "com.typesafe.akka" %% s"akka-$name" % version
-    lazy val akkaDataReplication = "com.github.patriknw" %% "akka-data-replication" % v.akkaDataReplication
+    lazy val akkaDataReplication = akka("distributed-data-experimental")// "com.github.patriknw" %% "akka-data-replication" % v.akkaDataReplication
 
     def slf4j(name: String) = "org.slf4j" % s"slf4j-$name" % v.slf4j
 

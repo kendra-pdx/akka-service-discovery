@@ -4,7 +4,7 @@ import java.time.Instant
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import akka.cluster.Cluster
-import akka.contrib.datareplication.{ORMap, DataReplication, ORSet}
+import akka.cluster.ddata.{DistributedData, ORMap, ORMapKey, ORSet}
 import akka.event.LoggingReceive
 import me.enkode.akka.service.discovery.core._
 
@@ -26,9 +26,9 @@ object ClusterServiceDiscoveryActor {
 
 class ClusterServiceDiscoveryActor extends Actor with ActorLogging {
   import ClusterServiceDiscoveryActor._
-  import akka.contrib.datareplication.Replicator.{Command ⇒ _, _}
+  import akka.cluster.ddata.Replicator.{Command ⇒ _, _}
 
-  val replicator = DataReplication(context.system).replicator
+  val replicator = DistributedData(context.system).replicator
   implicit val cluster = Cluster(context.system)
 
   val rc = ReadLocal
@@ -37,35 +37,27 @@ class ClusterServiceDiscoveryActor extends Actor with ActorLogging {
   type ReportsByService = ORMap[ORSet[Report]]
   val reportsByService = ORMap.empty[ORSet[Report]]
 
-  def updateReportsByService(report: Report)(byService: ReportsByService): ReportsByService = {
+  def updateReportsByService(report: Report)(byService:  ORMap[ORSet[Report]]): ORMap[ORSet[Report]] = {
     byService.updated(cluster, report.instance.service.serviceId, ORSet.empty[Report]){ _ + report }
   }
 
+  def keyOf(serviceId: String): ORMapKey[ORSet[Report]] = ORMapKey[ORSet[Report]](serviceId)
+
   override def receive: Receive = LoggingReceive {
-    // SEND HEARTBEAT
+    // SEND REPORTS
     case SendReport(report) ⇒
-      replicator ! Update(report.instance.service.serviceId, reportsByService, rc, wc, None)(updateReportsByService(report))
-
-    // PRUNE
-    case command@PruneHeartbeats(instance, _) ⇒
-      replicator ! Get(instance.instanceId, rc, Some(command))
-
-    case GetSuccess(instanceId, data: ORSet[Report] @unchecked, Some(PruneHeartbeats(instance, before))) ⇒
-      data.elements filter { _.when.isBefore(before) } foreach { prune ⇒
-        replicator ! Update(instanceId, data, rc, wc) { _ - prune }
-      }
-
-    case NotFound(_, Some(PruneHeartbeats(instance, before))) ⇒
-      // do nothing
+      replicator ! Update(keyOf(report.instance.service.serviceId), reportsByService, wc, None)(updateReportsByService(report))
 
     // GET REPORTS
 
     case command@GetServiceReports(serviceId) ⇒
       log.info(s"asking the replicator for reports for $serviceId")
       val replyTo = sender()
-      replicator ! Get(serviceId, rc, Some(command → replyTo))
+      val key = ORMapKey[ORSet[Report]](serviceId)
+      replicator ! Get(key, rc, Some(command → replyTo))
 
-    case GetSuccess(serviceId, data: ReportsByService @unchecked, Some((command: GetServiceReports, replyTo: ActorRef))) ⇒
+    case success@GetSuccess(ORMapKey(serviceId), Some((command: GetServiceReports, replyTo: ActorRef))) ⇒
+      val data = success.get(keyOf(serviceId))
       log.info(s"get success for serviceId: $serviceId - $data")
       val reports: Set[Report] = {
         data.entries.values.map(_.elements).toSet.flatten
