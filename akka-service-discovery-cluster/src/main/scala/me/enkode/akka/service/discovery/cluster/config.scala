@@ -7,5 +7,5 @@ case class ClusterServiceDiscoveryConfig(
 )
 
 case class ClusterServiceDiscoveryConfigTimeouts(
-  queryInstancesByService: FiniteDuration
+  dDataAsk: FiniteDuration
 )

@@ -1,6 +1,9 @@
 package me.enkode.akka.service.discovery.cluster
 
-import akka.actor.{ActorRef, Cancellable, ExtendedActorSystem}
+import akka.actor.{Cancellable, ExtendedActorSystem}
+import akka.cluster.Cluster
+import akka.cluster.ddata.Replicator._
+import akka.cluster.ddata.{DistributedData, ORMap, ORMapKey, ORSet}
 import akka.event.Logging
 import akka.util.Timeout
 import me.enkode.akka.service.discovery.ServiceDiscovery.Self
@@ -16,19 +19,36 @@ class ClusterServiceDiscovery(
   clusterServiceDiscoveryConfig: ClusterServiceDiscoveryConfig)
   (implicit actorSystem: ExtendedActorSystem) extends ServiceDiscovery {
   import actorSystem.dispatcher
+  import akka.pattern.ask
+
   val logger = Logging.getLogger(actorSystem, this)
-
-  def createClusterServiceDiscoveryActorRef(): ActorRef = {
-    actorSystem.actorOf(ClusterServiceDiscoveryActor.props)
-  }
-
-  val sdActorRef = createClusterServiceDiscoveryActorRef()
 
   if (serviceDiscoveryConfig.autoStart) {
     self().start()
   }
 
   private var tasks: Seq[Cancellable] = Nil
+
+  implicit val askTimeout = Timeout(clusterServiceDiscoveryConfig.timeouts.dDataAsk)
+  implicit val cluster = Cluster(actorSystem)
+
+  val replicator = DistributedData(actorSystem).replicator
+
+  def keyOf(serviceId: String): ORMapKey[ORSet[Report]] = ORMapKey[ORSet[Report]](serviceId)
+
+  def updateReportsByService(report: Report)(byService:  ORMap[ORSet[Report]]): ORMap[ORSet[Report]] = {
+    byService.updated(cluster, report.instance.service.serviceId, ORSet.empty[Report]){ _ + report }
+  }
+
+  def reportUpdate(report: Report): Update[ORMap[ORSet[Report]]] = {
+    val reportsByService = ORMap.empty[ORSet[Report]]
+    Update(keyOf(report.instance.service.serviceId), reportsByService, WriteLocal, None)(updateReportsByService(report))
+  }
+
+  def reportsByServiceGet(serviceId: ServiceId): Get[ORMap[ORSet[Report]]] = {
+    val key = ORMapKey[ORSet[Report]](serviceId)
+    Get(key, ReadLocal, None)
+  }
 
   override def self(): ServiceDiscovery.Self = new Self {
 
@@ -39,7 +59,9 @@ class ClusterServiceDiscovery(
     def heartbeat(): Unit = {
       logger.debug("<3")
       val report = Heartbeat(localInstance, InstanceLoad.memory(), InstanceLoad.cpu(), status = reportStatus)
-      sdActorRef ! ClusterServiceDiscoveryActor.SendReport(report)
+      (replicator ask reportUpdate(report)) map {
+        case response ⇒ logger.debug(s"replicator update response: $response")
+      }
     }
 
     def prune(): Unit = {
@@ -65,6 +87,9 @@ class ClusterServiceDiscovery(
   }
 
   override def service(serviceId: ServiceId): ServiceDiscovery.Service = new ServiceDiscovery.Service {
+    def updateReportsByService(report: Report)(byService:  ORMap[ORSet[Report]]): ORMap[ORSet[Report]] = {
+      byService.updated(cluster, report.instance.service.serviceId, ORSet.empty[Report]){ _ + report }
+    }
 
     implicit object ReportOrdering extends Ordering[Report] {
       override def compare(x: Report, y: Report): Int = {
@@ -73,18 +98,23 @@ class ClusterServiceDiscovery(
     }
 
     override def observation(instance: Instance, status: Status, latency: FiniteDuration): Unit = {
-      val observation = Observation(instance, localInstance, latency, status = status)
-      sdActorRef ! ClusterServiceDiscoveryActor.SendReport(observation)
+      val report = Observation(instance, localInstance, latency, status = status)
+      (replicator ask reportUpdate(report)) map {
+        case response ⇒ logger.debug(s"replicator update response: $response")
+      }
     }
 
     override def reports(): Future[Set[Report]] = {
       import akka.pattern.ask
-      implicit val timeout = Timeout(clusterServiceDiscoveryConfig.timeouts.queryInstancesByService)
       logger.info(s"searching for reports: serviceId=$serviceId")
-      sdActorRef
-        .ask(ClusterServiceDiscoveryActor.GetServiceReports(serviceId))
-        .mapTo[ClusterServiceDiscoveryActor.GetServiceReportsResult]
-        .map(_.reports)
+
+      (replicator ask reportsByServiceGet(serviceId)) map {
+        case success@GetSuccess(ORMapKey(`serviceId`), _) ⇒
+          success.get(keyOf(serviceId)).entries.values.flatMap(_.elements).toSet
+
+        case NotFound(ORMapKey(`serviceId`), _) ⇒
+          Set.empty[Report]
+      }
     }
 
     override def nearest(): Future[Option[Instance]] = reports() map { _.toList.sorted.headOption.map(_.instance) }
