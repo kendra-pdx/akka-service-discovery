@@ -16,7 +16,7 @@ object Scheme extends Enum[Scheme] {
 }
 
 case class Access(scheme: Scheme, host: Host, port: Int) {
-  require(port > 0, "port must be postive")
+  require(port > 0, "port must be positive")
   require(port <= math.pow(2, 16), "port must be a 16 bit unsigned integer")
 }
 
@@ -38,49 +38,29 @@ sealed trait Report {
   def status: Status
 }
 
-sealed trait HeartbeatMeta extends EnumEntry
-object HeartbeatMeta extends Enum[HeartbeatMeta] {
-  override def values: Seq[HeartbeatMeta] = findValues
-
-  case object CpuLoad extends HeartbeatMeta
-  case object MemoryLoad extends HeartbeatMeta
-
-  type Value = Either[Double, String]
-  type Values = Map[HeartbeatMeta, Value]
+case class HeartbeatMeta(
+  cpuLoad: Option[Float],
+  memoryLoad: Option[Float] ) {
+  cpuLoad foreach { cpu ⇒ require(0.0 → 1.0 contains cpu, s"cpu: $cpu") }
+  memoryLoad foreach { mem ⇒ require(0.0 → 1.0 contains mem, s"mem: $mem") }
 }
 
 case class Heartbeat(
   instance: Instance,
-  meta: HeartbeatMeta.Values,
+  meta: HeartbeatMeta,
   when: Instant = Instant.now(),
   status: Status = Status.ok
-  ) extends Report {
-  meta foreach {
-    case (HeartbeatMeta.CpuLoad, Left(cpuLoad)) ⇒
-      require(0.0 → 1.0 contains cpuLoad, s"cpu: $cpuLoad")
+  ) extends Report
 
-    case (HeartbeatMeta.MemoryLoad, Left(memoryLoad)) ⇒
-      require(0.0 → 1.0 contains memoryLoad, s"mem: $memoryLoad")
 
-    case (m, v) ⇒ throw new IllegalArgumentException(s"$m→$v is invalid")
-  }
-}
-
-sealed trait ObservationMeta extends EnumEntry
-
-object ObservationMeta extends Enum[ObservationMeta] {
-  override def values: Seq[ObservationMeta] = findValues
-
-  case object Latency extends ObservationMeta
-
-  type Value = Either[Double, String]
-  type Values = Map[ObservationMeta, Value]
-}
+case class ObservationMeta(
+  latency: Option[FiniteDuration]
+)
 
 case class Observation(
   instance: Instance,
   observedBy: Instance,
-  meta: ObservationMeta.Values,
+  meta: ObservationMeta,
   when: Instant = Instant.now(),
   status: Status = Status.ok
   ) extends Report
@@ -89,7 +69,6 @@ case class Host(publicName: String, rack: Rack)
 case object Host {
   val local = Host("localhost", Cloud.Local.LocalRack)
 }
-
 
 sealed trait Datacenter
 
@@ -126,6 +105,7 @@ object Cloud extends Enum[Cloud] {
 
     case class AZ(region: Region, az: Char) extends Rack {
       val datacenter: Datacenter = region
+      val azId = s"${region.entryName}$az"
     }
 
     case object AZ {

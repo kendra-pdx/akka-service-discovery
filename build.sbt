@@ -15,7 +15,8 @@ lazy val `akka-service-discovery-cluster` = (project)
     libraryDependencies ++= Seq(
       Boilerplate.Modules.akka("actor"),
       Boilerplate.Modules.akkaDataReplication,
-      Boilerplate.Modules.ficus
+      Boilerplate.Modules.ficus,
+      Boilerplate.Modules.argonaut
     ) ++ Seq(
       Boilerplate.Modules.scalatest,
       Boilerplate.Modules.akka("multi-node-testkit"),

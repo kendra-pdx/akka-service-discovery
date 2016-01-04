@@ -62,5 +62,8 @@ object Boilerplate extends AutoPlugin {
     lazy val ficus = "com.iheart" %% "ficus" % v.ficus
 
     lazy val scalatest =  "org.scalatest" %% "scalatest" % v.scalatest
+
+    lazy val avro = "org.apache.avro" % "avro" % "1.7.7"
+    lazy val argonaut = "io.argonaut" %% "argonaut" % "6.0.4"
   }
 }

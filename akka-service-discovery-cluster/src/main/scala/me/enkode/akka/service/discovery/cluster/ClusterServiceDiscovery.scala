@@ -60,10 +60,10 @@ class ClusterServiceDiscovery(
 
     def heartbeat(): Unit = {
       logger.debug("<3")
-      val meta: HeartbeatMeta.Values = Map(
-        HeartbeatMeta.CpuLoad → Left(InstanceLoad.cpu()),
-        HeartbeatMeta.MemoryLoad → Left(InstanceLoad.memory())
-      )
+      val meta = HeartbeatMeta(
+        Some(InstanceLoad.cpu()),
+        Some(InstanceLoad.memory()))
+
       val report = Heartbeat(localInstance, meta, status = reportStatus)
       (replicator ask reportUpdate(report)) map {
         case response ⇒ logger.debug(s"replicator update response: $response")
@@ -106,11 +106,7 @@ class ClusterServiceDiscovery(
     override def observation(instance: Instance, status: Status,
       latency: Option[FiniteDuration] = None): Unit = {
 
-      val meta: ObservationMeta.Values = Map[ObservationMeta, Option[ObservationMeta.Value]](
-        ObservationMeta.Latency → (latency map { l ⇒ Left(l.toMillis) })
-      ) collect {
-        case (key, Some(value)) ⇒ key → value
-      }
+      val meta = ObservationMeta(latency)
 
       val report = Observation(instance, localInstance, meta, status = status)
       (replicator ask reportUpdate(report)) map {
